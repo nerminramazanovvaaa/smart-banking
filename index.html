@@ -1,0 +1,723 @@
+<!DOCTYPE html>
+<html lang="az">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Banking Vault</title>
+    <style>
+        :root {
+            --bg: #090d16;
+            --card-bg: #111827;
+            --border: #1f2937;
+            --accent: #38bdf8;
+            --text: #f8fafc;
+            --muted: #94a3b8;
+            --success: #10b981;
+            --danger: #ef4444;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            margin: 0;
+            padding: 30px;
+            display: flex;
+            justify-content: center;
+        }
+        .container { width: 100%; max-width: 1000px; }
+        
+        /* Toast Notification */
+        #toastContainer {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 9999;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .toast {
+            background: #1e293b;
+            color: #fff;
+            padding: 14px 20px;
+            border-radius: 10px;
+            border-left: 5px solid var(--accent);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+            font-size: 14px;
+            font-weight: 500;
+            animation: slideIn 0.3s ease-out forwards;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .toast.success { border-left-color: var(--success); }
+        .toast.error { border-left-color: var(--danger); }
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+
+        .card {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            padding: 30px;
+            margin-bottom: 20px;
+            box-shadow: 0 15px 30px -5px rgba(0, 0, 0, 0.4);
+            backdrop-filter: blur(10px);
+        }
+        h2, h3 { color: var(--accent); margin-top: 0; }
+        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        .form-group { margin-bottom: 15px; }
+        label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 6px; }
+        input {
+            width: 100%; padding: 12px 14px; border-radius: 10px;
+            border: 1px solid #334155; background-color: #0b1120;
+            color: var(--text); box-sizing: border-box; font-size: 14px;
+            transition: 0.2s;
+        }
+        input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 10px rgba(56, 189, 248, 0.2); }
+        .btn {
+            width: 100%; padding: 13px; background-color: var(--accent);
+            border: none; border-radius: 10px; color: #000;
+            font-weight: bold; cursor: pointer; font-size: 14px; transition: 0.2s;
+        }
+        .btn:hover { background-color: #0ea5e9; transform: translateY(-1px); }
+        .webhook-btn {
+            background: linear-gradient(135deg, #10b981, #059669);
+            color: white; margin-top: 10px;
+        }
+        .webhook-btn:hover { background: #059669; }
+        .hidden { display: none; }
+        
+        /* Interactive Bank Cards */
+        .card-box {
+            background: linear-gradient(135deg, #1e293b, #0f172a);
+            padding: 20px; border-radius: 14px; border: 1px solid #334155;
+            margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center;
+            cursor: pointer; transition: 0.3s;
+        }
+        .card-box:hover { border-color: var(--accent); transform: scale(1.01); }
+        .card-box.active { border-color: var(--accent); background: linear-gradient(135deg, #1e293b, #0c4a6e); }
+        
+        /* Custom Modern Scrollbar & Item Spacing */
+        #txContainer {
+            max-height: 480px; 
+            overflow-y: auto; 
+            padding-right: 14px; /* Textlərin skrola yapışmaması üçün kənar məsafə */
+        }
+        #txContainer::-webkit-scrollbar {
+            width: 6px;
+        }
+        #txContainer::-webkit-scrollbar-track {
+            background: #0b1120;
+            border-radius: 10px;
+        }
+        #txContainer::-webkit-scrollbar-thumb {
+            background: #334155;
+            border-radius: 10px;
+        }
+        #txContainer::-webkit-scrollbar-thumb:hover {
+            background: var(--accent);
+        }
+
+        .tx-item {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 12px 0; border-bottom: 1px solid var(--border); font-size: 14px;
+        }
+        .income { color: #34d399; font-weight: bold; }
+        .expense { color: #f87171; font-weight: bold; }
+        .security-badge {
+            background: #064e3b; color: #34d399; padding: 4px 12px;
+            border-radius: 20px; font-size: 11px; display: inline-block; margin-bottom: 15px;
+        }
+        .top-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        .logout-btn { background-color: #ef4444; color: white; border: none; border-radius: 8px; padding: 8px 18px; cursor: pointer; font-weight: bold; }
+        .delete-card-btn { background: #ef4444; color: white; border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; }
+        .stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-bottom: 20px; }
+        .stat-card { background: #0f172a; border: 1px solid #1e293b; padding: 15px; border-radius: 12px; text-align: center; }
+        .stat-val { font-size: 20px; font-weight: bold; margin-top: 5px; }
+        .switch-text { text-align: center; font-size: 13px; color: var(--muted); margin-top: 18px; cursor: pointer; }
+        .switch-text span { color: var(--accent); text-decoration: underline; }
+    </style>
+</head>
+<body>
+
+<div id="toastContainer"></div>
+
+<div class="container">
+
+    <!-- 1. QEYDİYYAT (REGISTER) -->
+    <div id="registerCard" class="card" style="max-width: 480px; margin: 30px auto;">
+        <h2>Smart Banking - Qeydiyyat</h2>
+        <p style="color: var(--muted); font-size: 13px; margin-bottom: 20px;">Hesabınızı yaradın və ilk bank kartınızı qoşun</p>
+        
+        <form onsubmit="event.preventDefault(); handleRegister();">
+            <div class="grid-2">
+                <div class="form-group">
+                    <label>Ad</label>
+                    <input type="text" id="regName" placeholder="Nərmin">
+                </div>
+                <div class="form-group">
+                    <label>Soyad</label>
+                    <input type="text" id="regSurname" placeholder="Ramazanova">
+                </div>
+            </div>
+            <div class="form-group">
+                <label>E-mail</label>
+                <input type="email" id="regEmail" placeholder="nermin@mail.com">
+            </div>
+            <div class="form-group">
+                <label>Şifrə</label>
+                <input type="password" id="regPass" placeholder="••••••••">
+            </div>
+
+            <hr style="border-color: var(--border); margin: 20px 0;">
+            <h3 style="font-size: 15px;"> Bank Kartınızı Əlavə Edin</h3>
+            <div class="form-group">
+                <label>Bank və ya Kart Adı</label>
+                <input type="text" id="regCardName" placeholder="Kapital Bank / Birbank">
+            </div>
+            <div class="form-group">
+                <label>Kart Nömrəsi (16 rəqəm)</label>
+                <input type="text" id="regCardNumber" placeholder="4169 0000 0000 0000" maxlength="19" oninput="formatCardNumber(this)">
+            </div>
+            <div class="grid-2">
+                <div class="form-group">
+                    <label>Son İstifadə (MM/YY)</label>
+                    <input type="text" id="regCardExp" placeholder="MM/YY" maxlength="5" oninput="formatExpiryDate(this)">
+                </div>
+                <div class="form-group">
+                    <label>CVV (3 rəqəm)</label>
+                    <input type="password" id="regCardCvv" placeholder="123" maxlength="3" oninput="formatCVV(this)">
+                </div>
+            </div>
+
+            <button type="submit" class="btn">Qeydiyyatı Tamamla</button>
+        </form>
+        <div class="switch-text" onclick="showLogin()">Artıq hesabınız var? <span>Daxil olun</span></div>
+    </div>
+
+    <!-- 2. GİRİŞ (LOGIN) -->
+    <div id="loginCard" class="card hidden" style="max-width: 400px; margin: 80px auto;">
+        <h2>Sistemə Giriş</h2>
+        <p style="color: var(--muted); font-size: 13px; margin-bottom: 20px;">Qeydiyyat e-mail ünvanınız ilə daxil olun</p>
+        
+        <form onsubmit="event.preventDefault(); handleLogin();">
+            <div class="form-group">
+                <label>E-mail</label>
+                <input type="email" id="loginEmail" placeholder="nermin@mail.com">
+            </div>
+            <div class="form-group">
+                <label>Şifrə</label>
+                <input type="password" id="loginPass" placeholder="••••••••">
+            </div>
+
+            <button type="submit" class="btn">Daxil Ol</button>
+        </form>
+        <div class="switch-text" onclick="showRegister()">Hesabınız yoxdur? <span>Qeydiyyatdan keçin</span></div>
+    </div>
+
+    <!-- 3. E-MAİL TƏSDİQ KODU (OTP) -->
+    <div id="otpCard" class="card hidden" style="max-width: 400px; margin: 80px auto;">
+        <h2>Təhlükəsizlik Kodunun Təsdiqi</h2>
+        <p style="color: var(--muted); font-size: 13px; margin-bottom: 15px;">E-mail ünvanınıza göndərilən 4 rəqəmli kodu daxil edin.</p>
+        <div style="background: #020617; padding: 12px; border-radius: 10px; margin-bottom: 15px; text-align: center; color: var(--accent); font-family: monospace; font-size: 16px;">
+            Gələn simulyasiya Kodu: <b>1234</b>
+        </div>
+        <form onsubmit="event.preventDefault(); verifyOtp();">
+            <div class="form-group">
+                <label>Təsdiq Kodu</label>
+                <input type="text" id="otpInput" placeholder="1234" maxlength="4" style="text-align: center; font-size: 18px; letter-spacing: 5px;">
+            </div>
+            <button type="submit" class="btn">Təsdiqlə və Keç</button>
+        </form>
+    </div>
+
+    <!-- 4. DASHBOARD -->
+    <div id="dashboard" class="hidden">
+        <div class="top-bar">
+            <div>
+                <h2 id="welcomeUser" style="margin: 0;">Xoş gəldiniz</h2>
+                <span class="security-badge">🔒 Güvənli Bank Şəbəkəsi</span>
+            </div>
+            <button class="logout-btn" onclick="handleLogout()">Çıxış</button>
+        </div>
+
+        <!-- Seçilmiş Kart Üzrə İnteraktiv Statistika -->
+        <div class="card" style="border-color: var(--accent);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                <h3 id="selectedCardTitle" style="margin: 0;">💳 Bütün Kartlar üzrə Ümumi Balans</h3>
+                <span style="font-size: 12px; color: var(--muted);">Canlı Hesabat</span>
+            </div>
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div style="font-size: 12px; color: var(--muted);">Cari Balans</div>
+                    <div class="stat-val" id="statBalance" style="color: var(--accent);">0.00 ₼</div>
+                </div>
+                <div class="stat-card">
+                    <div style="font-size: 12px; color: var(--muted);">Ümumi Xərc</div>
+                    <div class="stat-val" id="statExpense" style="color: #f87171;">0.00 ₼</div>
+                </div>
+                <div class="stat-card">
+                    <div style="font-size: 12px; color: var(--muted);">Ümumi Gəlir</div>
+                    <div class="stat-val" id="statIncome" style="color: #34d399;">0.00 ₼</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="grid-2">
+            <!-- Sol Tərəf: Kartlarım & Yeni Kart Formu -->
+            <div>
+                <div class="card">
+                    <h3> Bank Kartlarınız</h3>
+                    <p style="font-size: 12px; color: var(--muted); margin-top: -10px;">Bakiyəyi görmək üçün kartın üzerine klikləyin:</p>
+                    <div id="cardsContainer"></div>
+                    <button onclick="selectCard(null)" style="background: transparent; border: 1px dashed #334155; color: var(--muted); width: 100%; padding: 10px; border-radius: 10px; cursor: pointer; margin-top: 5px;">Bütün Kartlara Bax (Ümumi)</button>
+                </div>
+
+                <!-- Toggle Form -->
+                <div class="card">
+                    <button class="btn" onclick="toggleAddCardForm()" style="background: #1e293b; color: var(--accent); border: 1px solid var(--accent);">➕ Yeni Kart Əlavə Et</button>
+                    
+                    <div id="addCardFormContainer" class="hidden" style="margin-top: 15px; border-top: 1px solid var(--border); padding-top: 15px;">
+                        <form onsubmit="event.preventDefault(); addNewCard();">
+                            <div class="form-group">
+                                <label>Bank / Kart Adı</label>
+                                <input type="text" id="newCardName" placeholder="Leobank / Unibank">
+                            </div>
+                            <div class="form-group">
+                                <label>Kart Nömrəsi</label>
+                                <input type="text" id="newCardNum" placeholder="5314 0000 0000 0000" maxlength="19" oninput="formatCardNumber(this)">
+                            </div>
+                            <div class="grid-2">
+                                <div class="form-group">
+                                    <label>Son İstifadə (MM/YY)</label>
+                                    <input type="text" id="newCardExp" placeholder="MM/YY" maxlength="5" oninput="formatExpiryDate(this)">
+                                </div>
+                                <div class="form-group">
+                                    <label>CVV</label>
+                                    <input type="password" id="newCardCvv" placeholder="123" maxlength="3" oninput="formatCVV(this)">
+                                </div>
+                            </div>
+                            <button type="submit" class="btn">Kartı Təsdiqlə və Qoş</button>
+                        </form>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <h3> Bank Tranzaksiya Avtomatlaşdırılması</h3>
+                    <p style="font-size: 13px; color: var(--muted);">Kart üzrə ödəniş və ya pul köçürməsi simulyasiyası:</p>
+                    <button class="btn webhook-btn" onclick="simulateTransaction('expense', 'Market (Bravo)', 35.00)"> Bravo Market (-35 ₼)</button>
+                    <button class="btn webhook-btn" onclick="simulateTransaction('expense', 'Bolt Taxi', 8.50)" style="background: #6366f1;"> Taksi Ödənişi (-8.50 ₼)</button>
+                    <button class="btn webhook-btn" onclick="simulateTransaction('income', 'Maaş / Köçürmə', 500.00)" style="background: #0ea5e9;"> Hesaba Pul Köçürməsi (+500 ₼)</button>
+                </div>
+            </div>
+
+            <!-- Sağ Tərəf: Tranzaksiyalar Tarixçəsi -->
+            <div>
+                <div class="card">
+                    <h3> Əməliyyat Tarixçəsi</h3>
+                    <div id="txContainer">
+                        <p style="color: var(--muted);">Hələ heç bir əməliyyat qeydə alınmayıb.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<script>
+    let appState = {
+        registeredUser: null,
+        currentUser: null,
+        activeCardId: null,
+        cards: [],
+        transactions: []
+    };
+
+
+
+    async function loadData() {
+    const email = encodeURIComponent(appState.currentUser.email);
+    const [cr, tr] = await Promise.all([
+        fetch('/api/cards/' + email).then(r => r.json()),
+        fetch('/api/transactions/' + email).then(r => r.json())
+    ]);
+
+    appState.transactions = tr.transactions.map(r => ({
+        cardId: r.card_id,
+        cardName: r.card_name,
+        type: r.type,
+        desc: r.description,
+        amount: parseFloat(r.amount),
+        date: new Date(r.created_at).toLocaleString()
+    }));
+
+    appState.cards = cr.cards.map(c => {
+        const balance = appState.transactions
+            .filter(t => t.cardId === c.id)
+            .reduce((s, t) => s + (t.type === 'income' ? t.amount : -t.amount), 0);
+        return { id: c.id, name: c.name, number: c.last4, exp: c.exp, balance };
+    });
+}
+
+    function showToast(message, type = 'success') {
+        const container = document.getElementById('toastContainer');
+        const toast = document.createElement('div');
+        toast.className = `toast ${type}`;
+        toast.innerHTML = `<span>${type === 'success' ? '✅' : '❌'}</span> <span>${message}</span>`;
+        container.appendChild(toast);
+
+        setTimeout(() => {
+            toast.style.animation = 'slideIn 0.3s ease-out reverse forwards';
+            setTimeout(() => toast.remove(), 300);
+        }, 3500);
+    }
+
+    function formatCardNumber(input) {
+        let value = input.value.replace(/\D/g, '');
+        value = value.substring(0, 16);
+        let formatted = value.match(/.{1,4}/g)?.join(' ') || '';
+        input.value = formatted;
+    }
+
+    function formatExpiryDate(input) {
+        let value = input.value.replace(/\D/g, '');
+        if (value.length >= 2) {
+            let month = parseInt(value.substring(0, 2));
+            if (month < 1 || month > 12) {
+                showToast("Ay 01 ilə 12 arasında olmalıdır!", "error");
+                input.value = '';
+                return;
+            }
+            value = value.substring(0, 2) + '/' + value.substring(2, 4);
+        }
+        input.value = value;
+    }
+
+    function formatCVV(input) {
+        input.value = input.value.replace(/\D/g, '').substring(0, 3);
+    }
+
+    function maskCardNumber(fullNum) {
+        const clean = fullNum.replace(/\D/g, '');
+        if (clean.length < 4) return '•••• •••• •••• ' + clean;
+        const last4 = clean.slice(-4);
+        return `•••• •••• •••• ${last4}`;
+    }
+
+    function showLogin() {
+        document.getElementById('registerCard').classList.add('hidden');
+        document.getElementById('otpCard').classList.add('hidden');
+        document.getElementById('loginCard').classList.remove('hidden');
+    }
+
+    function showRegister() {
+        document.getElementById('loginCard').classList.add('hidden');
+        document.getElementById('otpCard').classList.add('hidden');
+        document.getElementById('registerCard').classList.remove('hidden');
+    }
+
+    async function handleRegister() {
+        const name = document.getElementById('regName').value.trim();
+        const surname = document.getElementById('regSurname').value.trim();
+        const email = document.getElementById('regEmail').value.trim();
+        const pass = document.getElementById('regPass').value;
+
+        const cardName = document.getElementById('regCardName').value.trim();
+        const cardNumber = document.getElementById('regCardNumber').value;
+        const cardExp = document.getElementById('regCardExp').value.trim();
+        const cardCvv = document.getElementById('regCardCvv').value.trim();
+
+        if (!name || !surname || !email || !pass) {
+            showToast("Zəhmət olmasa şəxsi məlumatları tam doldurun!", "error");
+            return;
+        }
+
+        const cleanCard = cardNumber.replace(/\s/g, '');
+        if (cleanCard.length !== 16 || cardExp.length !== 5 || cardCvv.length !== 3) {
+            showToast("Kart məlumatlarını düzgün daxil edin!", "error");
+            return;
+        }
+
+        // --- İNDİ BURADA SERVERƏ (BACKEND) SORĞU GÖNDƏRİRİK ---
+        try {
+            const response = await fetch('/api/register', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                
+                body: JSON.stringify({
+    name: `${name} ${surname}`,
+    email,
+    password: pass,
+    cardNumber: cleanCard,
+    cardName,
+    cardExp
+})
+            });
+
+            const data = await response.json();
+            
+            if (data.success) {
+                showToast("Qeydiyyat uğurla tamamlandı! Kart şifrələndi.");
+                appState.registeredUser = { name, surname, email, pass };
+                
+                
+
+                showLogin();
+            } else {
+                showToast("Xəta baş verdi!", "error");
+            }
+        } catch (err) {
+            showToast("Serverlə əlaqə qurulmadı!", "error");
+        }
+    }
+    async function handleLogin() {
+        const email = document.getElementById('loginEmail').value.trim();
+        const pass = document.getElementById('loginPass').value;
+
+        if (!email || !pass) {
+            showToast("Zəhmət olmasa e-mail və şifrəni daxil edin!", "error");
+            return;
+        }
+
+        try {
+            // Nisbi (relative) URL istifadə edirik ki, server eyni port üzərindən sorğunu əldə etsin
+            const response = await fetch('/api/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email, password: pass })
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                appState.registeredUser = { 
+                    name: data.user.name, 
+                    email: data.user.email, 
+                    pass: pass 
+                };
+
+                document.getElementById('loginCard').classList.add('hidden');
+                document.getElementById('otpCard').classList.remove('hidden');
+                showToast("Təhlükəsizlik kodu e-mail ünvanınıza göndərildi.");
+            } else {
+                showToast(data.message || "E-mail və ya şifrə yanlışdır!", "error");
+            }
+        } catch (err) {
+            showToast("Serverlə əlaqə qurulmadı!", "error");
+        }
+    }
+
+    async function verifyOtp() {
+    const code = document.getElementById('otpInput').value.trim();
+    if (code !== "1234") {
+        showToast("Təsdiq kodu yanlışdır! (Kod: 1234)", "error");
+        return;
+    }
+
+    appState.currentUser = appState.registeredUser;
+    try {
+        await loadData();
+    } catch (e) {
+        showToast("Məlumatlar yüklənmədi!", "error");
+        return;
+    }
+
+    document.getElementById('otpCard').classList.add('hidden');
+    document.getElementById('dashboard').classList.remove('hidden');
+    document.getElementById('welcomeUser').innerText = `Xoş gəldiniz, ${appState.currentUser.name}`;
+    showToast("Sistemə uğurla daxil oldunuz!");
+    renderApp();
+}
+
+    function handleLogout() {
+        appState.currentUser = null;
+        appState.activeCardId = null;
+        document.getElementById('dashboard').classList.add('hidden');
+        showLogin();
+        showToast("Sistemdən çıxış edildi.");
+    }
+
+    function toggleAddCardForm() {
+        const form = document.getElementById('addCardFormContainer');
+        form.classList.toggle('hidden');
+    }
+
+    async function addNewCard() {
+    const name = document.getElementById('newCardName').value.trim();
+    const number = document.getElementById('newCardNum').value;
+    const exp = document.getElementById('newCardExp').value.trim();
+    const cvv = document.getElementById('newCardCvv').value.trim();
+
+    const cleanCard = number.replace(/\s/g, '');
+    if (!name || cleanCard.length !== 16 || exp.length !== 5 || cvv.length !== 3) {
+        showToast("Kart məlumatlarını tam və düzgün daxil edin!", "error");
+        return;
+    }
+
+    try {
+        const res = await fetch('/api/cards', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                email: appState.currentUser.email,
+                name,
+                last4: cleanCard.slice(-4),
+                exp
+            })
+        });
+        const data = await res.json();
+        if (!data.success) throw new Error();
+        await loadData();
+    } catch (e) {
+        showToast("Kart yadda saxlanılmadı!", "error");
+        return;
+    }
+
+    ['newCardName', 'newCardNum', 'newCardExp', 'newCardCvv'].forEach(id => document.getElementById(id).value = '');
+    toggleAddCardForm();
+    showToast("Yeni bank kartı uğurla qoşuldu!");
+    renderApp();
+}
+
+    async function deleteCard(cardId, event) {
+    event.stopPropagation();
+    if (appState.cards.length <= 1) {
+        showToast("Ən azı 1 aktiv kartınız olmalıdır!", "error");
+        return;
+    }
+    try {
+        await fetch('/api/cards/' + cardId, { method: 'DELETE' });
+        if (appState.activeCardId === cardId) appState.activeCardId = null;
+        await loadData();
+    } catch (e) {
+        showToast("Kart silinmədi!", "error");
+        return;
+    }
+    showToast("Bank kartı silindi.");
+    renderApp();
+}
+
+    function selectCard(cardId) {
+        appState.activeCardId = cardId;
+        renderApp();
+    }
+
+    async function simulateTransaction(type, desc, amount) {
+    if (appState.cards.length === 0) {
+        showToast("Əvvəlcə kart qoşmalısınız!", "error");
+        return;
+    }
+
+    const card = appState.activeCardId
+        ? appState.cards.find(c => c.id === appState.activeCardId)
+        : appState.cards[0];
+
+    if (type === 'expense' && card.balance < amount) {
+        showToast(`${card.name} kartında kifayət qədər balans yoxdur!`, "error");
+        return;
+    }
+
+    try {
+        const res = await fetch('/api/transaction', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                email: appState.currentUser.email,
+                cardId: card.id,
+                cardName: card.name,
+                type,
+                description: desc,
+                amount
+            })
+        });
+        const data = await res.json();
+        if (!data.success) throw new Error(data.message);
+        await loadData();
+    } catch (e) {
+        showToast("Əməliyyat bazaya yazılmadı!", "error");
+        return;
+    }
+
+    showToast(`Əməliyyat icra olundu: ${desc} (${amount} ₼)`);
+    renderApp();
+}
+
+    function renderApp() {
+        const cardsEl = document.getElementById('cardsContainer');
+        cardsEl.innerHTML = '';
+
+        let totalBalance = 0;
+        appState.cards.forEach(card => {
+            totalBalance += card.balance;
+            const isActive = appState.activeCardId === card.id ? 'active' : '';
+            const maskedNum = maskCardNumber(card.number);
+
+            cardsEl.innerHTML += `
+                <div class="card-box ${isActive}" onclick="selectCard(${card.id})">
+                    <div>
+                        <strong>${card.name}</strong><br>
+                        <small style="color:var(--muted)">${maskedNum}</small>
+                    </div>
+                    <div>
+                        <button class="delete-card-btn" onclick="deleteCard(${card.id}, event)">Sil</button>
+                    </div>
+                </div>
+            `;
+        });
+
+        let filteredTx = appState.transactions;
+        let statBal = totalBalance;
+        let statExp = 0;
+        let statInc = 0;
+
+        if (appState.activeCardId !== null) {
+            const selectedCard = appState.cards.find(c => c.id === appState.activeCardId);
+            document.getElementById('selectedCardTitle').innerText = ` Seçilmiş Kart: ${selectedCard.name}`;
+            statBal = selectedCard.balance;
+            filteredTx = appState.transactions.filter(t => t.cardId === appState.activeCardId);
+        } else {
+            document.getElementById('selectedCardTitle').innerText = ` Bütün Kartlar üzrə Ümumi Balans`;
+        }
+
+        filteredTx.forEach(t => {
+            if (t.type === 'expense') statExp += t.amount;
+            else statInc += t.amount;
+        });
+
+        document.getElementById('statBalance').innerText = statBal.toFixed(2) + ' ₼';
+        document.getElementById('statExpense').innerText = statExp.toFixed(2) + ' ₼';
+        document.getElementById('statIncome').innerText = statInc.toFixed(2) + ' ₼';
+
+        const txEl = document.getElementById('txContainer');
+        txEl.innerHTML = '';
+
+        if (filteredTx.length === 0) {
+            txEl.innerHTML = `<p style="color: var(--muted);">Bu hissədə hələ əməliyyat yoxdur.</p>`;
+            return;
+        }
+
+        filteredTx.forEach(tx => {
+            const sign = tx.type === 'income' ? '+' : '-';
+            const cls = tx.type === 'income' ? 'income' : 'expense';
+            txEl.innerHTML += `
+                <div class="tx-item">
+                    <div>
+                        <strong>${tx.desc}</strong><br>
+                        <small style="color: var(--muted);">${tx.cardName} · ${tx.date}</small>
+                    </div>
+                    <div style="text-align: right;">
+                        <span class="${cls}">${sign}${tx.amount.toFixed(2)} ₼</span><br>
+                        <small style="font-size: 10px; color: #34d399;">🔒 Şifrəli İcra</small>
+                    </div>
+                </div>
+            `;
+        });
+    }
+</script>
+
+</body>
+</html>
